@@ -23,6 +23,7 @@ class Card
         void setPosition(vec2 pos);
         uint8_t getValue();
         uint8_t getSuit();
+        bool isInside(vec2 mousepos);
     private:
         uint8_t value = 0;
         Texture tex;

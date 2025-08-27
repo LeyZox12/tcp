@@ -31,3 +31,10 @@ uint8_t Card::getSuit()
 {
     return suit;
 }
+
+
+bool Card::isInside(vec2 mousepos)
+{
+    return abs(mousepos.x - sprite.getPosition().x) < sprite.getSize().x * 0.5f&&
+           abs(mousepos.y - sprite.getPosition().y) < sprite.getSize().y * 0.5f;
+}
