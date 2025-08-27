@@ -34,7 +34,7 @@ void Button::draw(RenderWindow& window)
     vec2u winSize = window.getSize();
     sprite.setTexture(&tex);
     float borderX = winSize.x - winSize.y;
-    sprite.setPosition(vec2(borderX + posRatio.x * winSize.y, posRatio.y * winSize.y));
+    sprite.setPosition(vec2(posRatio.x * winSize.x, posRatio.y * winSize.y));
     sprite.setSize(vec2(sizeRatio.x * winSize.y, sizeRatio.y * winSize.y));
     sprite.setOrigin(sprite.getSize() * 0.5f);
     window.draw(sprite);
