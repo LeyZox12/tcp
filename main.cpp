@@ -5,13 +5,16 @@
 #include <vector>
 #include <math.h>
 #include <algorithm>
+#include <sstream>
+#include <thread>
 #include "Card.h"
 #include "Button.h"
+#include "handCheck.hpp"
 
 using namespace std;
 using namespace sf;
 
-const string LOOKUP_TABLE = "";
+const string LOOKUP_TABLE = "BAOXINZFSWD";
 
 ///TODO discard cards + looping game + bet amount + draw skin 
 
@@ -36,6 +39,9 @@ vec2 getCardPos(int index, bool clientPlayer, vec2 cardSize, vec2u winSize);
 void getCardOnCur(vec2i mousepos, vec2u winSize);
 void updateCardsPos(vec2u winSize);
 void discard();
+void displayMessage(string message, Color color);
+
+Text text(font, "", 40);
 
 vector<int> selectedCards;
 
@@ -47,7 +53,29 @@ enum GameState
     RESULTS
 };
 
+
 int gameState = GameState::WAITING_PLAYERS;
+
+/*
+void handTesting()
+{
+    vector<Card> hand= {Card(1, 1, vec2(0, 0)),Card(1, 0, vec2(0, 0)),Card(1, 0, vec2(4, 0)),Card(1, 0, vec2(0, 0)),Card(0, 0, vec2(0, 0))};
+    cout << getHand(hand) << endl;
+    hand= {Card(1, 0, vec2(0, 0)),Card(1, 1, vec2(0, 0)),Card(1, 0, vec2(4, 0)),Card(0, 0, vec2(0, 0)),Card(0, 0, vec2(0, 0))};
+    cout << getHand(hand) << endl;
+    hand= {Card(1, 0, vec2(0, 0)),Card(1, 0, vec2(0, 0)),Card(4, 1, vec2(4, 0)),Card(3, 0, vec2(0, 0)),Card(0, 0, vec2(0, 0))};
+    cout << getHand(hand) << endl;
+    hand= {Card(1, 1, vec2(0, 0)),Card(1, 0, vec2(0, 0)),Card(2, 0, vec2(4, 0)),Card(2, 0, vec2(0, 0)),Card(4, 0, vec2(0, 0))};
+    cout << getHand(hand) << endl;
+    hand= {Card(1, 2, vec2(0, 0)),Card(1, 0, vec2(0, 0)),Card(1, 0, vec2(4, 0)),Card(3, 0, vec2(0, 0)),Card(4, 0, vec2(0, 0))};
+    cout << getHand(hand) << endl;
+    hand= {Card(1, 2, vec2(0, 0)),Card(3, 0, vec2(0, 0)),Card(7, 0, vec2(9, 0)),Card(0, 0, vec2(0, 0)),Card(4, 0, vec2(0, 0))};
+    cout << getHand(hand) << endl;
+    hand= {Card(1, 0, vec2(0, 0)),Card(2, 0, vec2(0, 0)),Card(3, 0, vec2(4, 0)),Card(5, 0, vec2(0, 0)),Card(4, 0, vec2(0, 0))};
+    cout << getHand(hand) << endl;
+    hand= {Card(1, 4, vec2(0, 0)),Card(2, 0, vec2(0, 0)),Card(3, 1, vec2(4, 0)),Card(4, 0, vec2(0, 0)),Card(5, 0, vec2(0, 0))};
+    cout << getHand(hand) << endl;
+}*/
 
 int main(int argc, char* argv[])
 {
@@ -56,19 +84,17 @@ int main(int argc, char* argv[])
     {
         TcpListener listener;
         listener.listen(atoi(argv[2]));
-        cout << "server launched on port: " << argv[2] << endl << "code is:" <<encode(IpAddress::getPublicAddress()->toString()) << endl;
+
+        //cout << "server launched on port: " << argv[2] << endl << "code is:" <<encode() << endl;
         int playerCount = 0;
         vector<TcpSocket> clients;
         vector<bool> discarded = {false, false};
         clients.emplace_back(TcpSocket());
-        clients[0].setBlocking(false);
         while(playerCount < 2)
         {
             if(listener.accept(clients[playerCount]) == Socket::Status::Done)
             {
                 clients.emplace_back(TcpSocket());
-                clients[clients.size()-1].setBlocking(false);
-                cout << "player " << clients[playerCount].getRemoteAddress().value() << endl;
                 playerCount++;
             }
         }
@@ -81,39 +107,120 @@ int main(int argc, char* argv[])
         vector<Card> deck;
         initDeck(deck);
         shuffle(deck);
-        p1.clear();
-        for(int i = 0; i < 10; i++)
+        while(true)
         {
-            if(i < 5)
+            if(gameState == GameState::GIVING_CARDS)
             {
-                p1 << to_string(deck[i].getValue()) << ";" << to_string(deck[i].getSuit()) << ";";
-                p2 << to_string(deck[9 - i].getValue()) << ";" << to_string(deck[9 - i].getSuit()) << ";";
-            }
-            else
-            {
-                p1 << to_string(0) << ";" << to_string(4) << ";";
-                p2 << to_string(0) << ";" << to_string(4) << ";";
-            }
-        }
-        clients[0].send(p1);
-        clients[1].send(p2);
-        for(int _ = 0; _ < 10; _++) deck.erase(deck.begin());
-        gameState = GameState::CHOOSING_CARDS_DISCARD;
-        Packet discardPacket;
-        if(clients[0].receive(discardPacket) == Socket::Status::Done)
-        {
-            string message = "";
-            string cardCount = "";
-            discardPacket >> message >> cardCount;
-            if(message == "discarding")
-            {
-                discardPacket.clear();
-                for(int i = 0; i < stoi(cardCount); i++)
+                p1.clear();
+                p2.clear();
+                p1 << "GIVING";
+                p2 << "GIVING";
+                for(int i = 0; i < 10; i++)
                 {
-                    discardPacket << to_string(deck[i].getValue()) << ";" << deck[i].getSuit() << ";";
+                    if(i < 5)
+                    {
+                        cards.push_back(Card(deck[i].getValue(), deck[i].getSuit(), vec2(0,0)));
+                        p1 << to_string(deck[i].getValue()) << ";" << to_string(deck[i].getSuit()) << ";";
+                        p2 << to_string(deck[9 - i].getValue()) << ";" << to_string(deck[9 - i].getSuit()) << ";";
+                    }
+                    else
+                    {
+                        cards.push_back(Card(deck[i].getValue(), deck[i].getSuit(), vec2(0,0)));
+                        p1 << to_string(0) << ";" << to_string(4) << ";";
+                        p2 << to_string(0) << ";" << to_string(4) << ";";
+                    }
+                }
+                clients[0].send(p1);
+                clients[1].send(p2);
+                for(int _ = 0; _ < 10; _++) deck.erase(deck.begin());
+                gameState = GameState::CHOOSING_CARDS_DISCARD;
+            }
+            else if(gameState == GameState::CHOOSING_CARDS_DISCARD)
+            {
+                int playersReady = 0;
+                vector<vector<int>> cardsDiscarded;
+                for(int i = 0; i < 2; i++)
+                {
+                    clients[i].setBlocking(false);
+                    Packet discardPacket;
+                    cardsDiscarded.push_back({});
+                    if(clients[i].receive(discardPacket) == Socket::Status::Done)
+                    {
+                        string message = "";
+                        string numbers = "";
+                        string dump = "";
+                        discardPacket >> message >> dump >> numbers;
+                        if(message == "discard")
+                        {
+                            int cardCount = 0;
+                            cardCount = numbers[0] - '0';
+                            cout << cardCount << endl;
+                            vector<int> indexes;
+                            for(int c = 0; c < cardCount; c++)
+                            {
+                                int index = numbers[c+1] - '0';
+                                if(i ==1) index = 9-index;
+                                indexes.push_back(index);
+                            }
+                            sort(indexes.begin(), indexes.end(), greater<int>());
+                            for(auto& index : indexes)
+                            {
+                                cout << unsigned(cards[index].getValue()) <<";" << unsigned(cards[index].getSuit()) << endl;
+                                cards[index] = deck[0];
+                                deck.erase(deck.begin());
+                            }
+                        }
+                        playersReady++;
+                    }
+                }
+            
+                if(playersReady == 2)
+                {
+                    cout << "both players are ready, sending missing cards\n";
+                    p1.clear();
+                    p2.clear();
+                    vector<Card> h1;
+                    vector<Card> h2;
+                    p1 << "GIVING";
+                    p2 << "GIVING";
+                    for(int i = 0; i < 10; i++)
+                    {
+                        if(i < 5)
+                        {
+                            h1.push_back(cards[i]);
+                            h2.push_back(cards[9-i]);
+                        }
+                        p1 << to_string(cards[i].getValue()) << ";" << to_string(cards[i].getSuit()) << ";";
+                        p2 << to_string(cards[9 - i].getValue()) << ";" << to_string(cards[9 - i].getSuit()) << ";";
+                    }
+                    int winner = getWinner(h1, h2);
+                    if(winner == 0)
+                    {
+                        p1 << "WON";
+                        p2 << "LOST";
+                    }
+                    else
+                    {
+                        p2 << "WON";
+                        p1 << "LOST";
+                    }
+                    clients[0].send(p1);
+                    clients[1].send(p2);
+                    this_thread::sleep_for(5000ms);
+                    p1.clear();
+                    p2.clear();
+                    p1 << "RESET";
+                    clients[0].send(p1);
+                    clients[1].send(p1);
+                    deck.clear();
+                    initDeck(deck);
+                    shuffle(deck);
+                    this_thread::sleep_for(300ms);
+                    gameState = GameState::GIVING_CARDS;
                 }
             }
         }
+        //for(;;);
     }
     else
     {
@@ -133,9 +240,11 @@ int main(int argc, char* argv[])
             cin >> port;
             cout << endl;
         }
-        string decoded = decode(code);
-        IpAddress ip = static_cast<IpAddress>(IpAddress::resolve("localhost").value());
+        //string decoded = decode(code);
+        string decoded = code;
+        IpAddress ip = static_cast<IpAddress>(IpAddress::resolve(decoded).value());
         string err = (client.connect(ip, port) == Socket::Status::Done) ? "connected successfully" : "failed to connect";
+        cout << err << endl;
         Texture manTex("res/man.png");
         man.setTexture(&manTex);
         Texture tableTex("res/table.png");
@@ -154,24 +263,32 @@ int main(int argc, char* argv[])
         RenderWindow window(VideoMode({512, 512}), "crippling addiction");
         window.setView(View({256, 256}, {512, 512}));
         onResize(vec2u(512, 512));
+        window.setFramerateLimit(30);
+        sf::Clock deltaClock;
         buttons.emplace_back(Button(vec2(0.8, 0.8), vec2(0.16, 0.08),
         [&gameState, &selectedCards, &cards, &client]()
         {
-            if(gameState != CHOOSING_CARDS_DISCARD)return;
+            if(gameState != GameState::CHOOSING_CARDS_DISCARD)return;
             Packet p;
-            p << "discard" << to_string(selectedCards.size());
+            p << "discard" <<";";
+            string numbers = to_string(selectedCards.size());
             sort(selectedCards.begin(), selectedCards.end(), greater<int>());
             for(int i = 0; i < selectedCards.size(); i++)
             {
-                cards.erase(cards.begin() + selectedCards[i]);
-                p << to_string(selectedCards[i]);
+                numbers += to_string(selectedCards[i]);
             }
+            p << numbers; 
+            for(auto& s : selectedCards)
+                cards.erase(cards.begin() + s);
             client.send(p);
+            gameState = GameState::RESULTS;
+            selectedCards.clear();
         }, Color::Red));
 
         Packet cardPacket;
         while(window.isOpen())
         {
+            float dt = deltaClock.restart().asSeconds();
             while(optional<Event> e = window.pollEvent())
             {
                 for(auto& b : buttons)
@@ -183,21 +300,50 @@ int main(int argc, char* argv[])
                     window.setView(View({size.x * 0.5f, size.y * 0.5f}, {size.x, size.y}));
                     onResize(size);
                 }
-                if(e->is<Event::MouseButtonPressed>() && e->getIf<Event::MouseButtonPressed>()->button == Mouse::Button::Left)
+                if(e->is<Event::MouseButtonPressed>() && 
+                   e->getIf<Event::MouseButtonPressed>()->button == Mouse::Button::Left &&
+                   gameState == GameState::CHOOSING_CARDS_DISCARD)
                     getCardOnCur(Mouse::getPosition(window), window.getSize());
             }
+            Color tC = text.getFillColor();
+            float alpha = tC.a - dt * 100.f;
+            if(alpha < 0.f) alpha = 0.f;
+            text.setFillColor(Color(tC.r, tC.g, tC.b, alpha));
             if(client.receive(cardPacket) == Socket::Status::Done)
             {
-                for(int i = 0; i < 10; i++)
+                string message = "";
+                cardPacket >> message;
+                if(message == "GIVING")
                 {
-                    string value = "";
-                    string suit = "";
-                    string dump = "";
-                    cardPacket >> value >> dump >> suit >> dump;
-                    cout << value << dump << suit << endl;
-                    cards.emplace_back(Card(stoi(value), stoi(suit), getCardPos(i, i < 5, cardSize, window.getSize())));
+                    cards.clear();
+                    for(int i = 0; i < 10; i++)
+                    {
+                        string value = "";
+                        string suit = "";
+                        string dump = "";
+                        cardPacket >> value >> dump >> suit >> dump;
+                        cout << value << dump << suit << endl;
+                        cards.emplace_back(Card(stoi(value), stoi(suit), getCardPos(i, i < 5, cardSize, window.getSize())));
+                    }
+                    if(gameState == GameState::RESULTS)
+                    {
+                        updateCardsPos(window.getSize());
+                        string result = "";
+                        cardPacket >> result;
+                        if(result == "WON")
+                            displayMessage("WON", Color::Green);
+                        else
+                            displayMessage("LOST", Color::Red);
+                        //gameState = GameState::GIVING_CARDS;
+                    }
+                    else
+                        gameState = GameState::CHOOSING_CARDS_DISCARD;
                 }
-                gameState = GameState::CHOOSING_CARDS_DISCARD;
+                else if(message == "RESET")
+                {
+                    gameState = GameState::GIVING_CARDS;
+                }
+                
             }
             if(clock() - animStart >= 1000)
             {
@@ -214,10 +360,17 @@ int main(int argc, char* argv[])
             {
                 c.draw(window, cardSize);
             }
+            window.draw(text);
             window.display();
         }
     }
     return 0;
+}
+
+void displayMessage(string message, Color color)
+{
+    text.setFillColor(color);
+    text.setString(message);
 }
 
 string encode(string str)
